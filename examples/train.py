@@ -211,6 +211,9 @@ def parse_args(argv):
         help="Auxiliary loss learning rate (default: %(default)s)",
     )
     parser.add_argument(
+        "--do_cropping", action="store_true", default=False, help="Do cropping for train/test images. If false, transform is simplt to tensor"
+    )
+    parser.add_argument(
         "--patch-size",
         type=int,
         nargs=2,
@@ -240,13 +243,23 @@ def main(argv):
         torch.manual_seed(args.seed)
         random.seed(args.seed)
 
-    train_transforms = transforms.Compose(
-        [transforms.RandomCrop(args.patch_size), transforms.ToTensor()]
-    )
+    if args.do_cropping:
+        train_transforms = transforms.Compose(
+            [transforms.RandomCrop(args.patch_size), transforms.ToTensor()]
+        )
 
-    test_transforms = transforms.Compose(
-        [transforms.CenterCrop(args.patch_size), transforms.ToTensor()]
-    )
+        test_transforms = transforms.Compose(
+            [transforms.CenterCrop(args.patch_size), transforms.ToTensor()]
+        )
+    else:
+        train_transforms = transforms.Compose(
+            [transforms.ToTensor()]
+        )
+
+        test_transforms = transforms.Compose(
+            [transforms.ToTensor()]
+        )
+
 
     train_dataset = ImageFolder(args.dataset, split="train", transform=train_transforms)
     test_dataset = ImageFolder(args.dataset, split="test", transform=test_transforms)
