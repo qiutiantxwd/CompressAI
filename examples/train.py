@@ -224,6 +224,9 @@ def parse_args(argv):
     parser.add_argument(
         "--save", action="store_true", default=True, help="Save model to disk"
     )
+    parser.add_argument(
+        "--save-file-name", default="checkpoint.pth.tar", help="Save model to the file"
+    )
     parser.add_argument("--seed", type=int, help="Set random seed for reproducibility")
     parser.add_argument(
         "--clip_max_norm",
@@ -331,6 +334,7 @@ def main(argv):
                     "lr_scheduler": lr_scheduler.state_dict(),
                 },
                 is_best,
+                filename=args.save_file_name
             )
 
 
