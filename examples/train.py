@@ -337,6 +337,11 @@ def main(argv):
         best_epoch = epoch if is_best else best_epoch
         best_loss = min(test_loss, best_loss)
         
+        # If no test improvement for 10 epochs, stop training
+        if epoch > best_epoch + 10:
+            break
+
+        
         ## Log every 5 epochs
         if epoch % 5 == 0:
             writer.add_scalar("Train Loss/cumulative", train_loss, epoch)
