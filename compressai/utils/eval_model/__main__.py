@@ -46,6 +46,7 @@ import torch.nn.functional as F
 from PIL import Image
 from pytorch_msssim import ms_ssim
 from torchvision import transforms
+from tqdm import tqdm
 
 import compressai
 
@@ -92,7 +93,7 @@ def compute_metrics(
     org = (org * max_val).clamp(0, max_val).round()
     rec = (rec * max_val).clamp(0, max_val).round()
     metrics["psnr-rgb"] = psnr(org, rec).item()
-    metrics["ms-ssim-rgb"] = ms_ssim(org, rec, data_range=max_val).item()
+    # metrics["ms-ssim-rgb"] = ms_ssim(org, rec, data_range=max_val).item()
     return metrics
 
 
@@ -142,7 +143,7 @@ def inference(model, x, vbr_stage=None, vbr_scale=None):
 
     return {
         "psnr-rgb": metrics["psnr-rgb"],
-        "ms-ssim-rgb": metrics["ms-ssim-rgb"],
+        # "ms-ssim-rgb": metrics["ms-ssim-rgb"],
         "bpp": bpp,
         "encoding_time": enc_time,
         "decoding_time": dec_time,
@@ -221,7 +222,7 @@ def eval_model(
     device = next(model.parameters()).device
     metrics = defaultdict(float)
     is_vbr_model = args["architecture"].endswith("-vbr")
-    for filepath in filepaths:
+    for filepath in tqdm(filepaths):
         x = read_image(filepath).to(device)
         if not entropy_estimation:
             if args["half"]:
