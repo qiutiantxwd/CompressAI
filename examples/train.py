@@ -37,6 +37,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms
 
 from compressai.datasets import ImageFolder
@@ -106,16 +107,22 @@ def train_one_epoch(
         aux_loss.backward()
         aux_optimizer.step()
 
+        loss = out_criterion["loss"].item()
+        mse_loss = out_criterion["mse_loss"].item()
+        bpp_loss = out_criterion["bpp_loss"].item()
+        
+
         if i % 10 == 0:
             print(
                 f"Train epoch {epoch}: ["
                 f"{i*len(d)}/{len(train_dataloader.dataset)}"
                 f" ({100. * i / len(train_dataloader):.0f}%)]"
-                f'\tLoss: {out_criterion["loss"].item():.3f} |'
-                f'\tMSE loss: {out_criterion["mse_loss"].item():.3f} |'
-                f'\tBpp loss: {out_criterion["bpp_loss"].item():.2f} |'
+                f'\tLoss: {loss:.3f} |'
+                f'\tMSE loss: {mse_loss:.3f} |'
+                f'\tBpp loss: {bpp_loss:.2f} |'
                 f"\tAux loss: {aux_loss.item():.2f}"
             )
+        return loss, mse_loss, bpp_loss, aux_loss.item() 
 
 
 def test_epoch(epoch, test_dataloader, model, criterion):
@@ -146,13 +153,14 @@ def test_epoch(epoch, test_dataloader, model, criterion):
         f"\tAux loss: {aux_loss.avg:.2f}\n"
     )
 
-    return loss.avg
+    return loss.avg, mse_loss.avg, bpp_loss.avg, aux_loss.avg
 
 
-def save_checkpoint(state, is_best, filename="checkpoint.pth.tar"):
-    torch.save(state, filename)
+def save_checkpoint(state, is_best, filename="checkpoint"):
+    torch.save(state, f"{filename}.pth.tar")
+    epoch = state["epoch"]
     if is_best:
-        shutil.copyfile(filename, "checkpoint_best_loss.pth.tar")
+        shutil.copyfile(f"{filename}.pth.tar", f"{filename}_best_loss.pth.tar")
 
 
 def parse_args(argv):
@@ -214,6 +222,9 @@ def parse_args(argv):
         "--do_cropping", action="store_true", default=False, help="Do cropping for train/test images. If false, transform is simplt to tensor"
     )
     parser.add_argument(
+        "--log-name", default= "new_run", help="Name of tensorboard logging run"
+    )
+    parser.add_argument(
         "--patch-size",
         type=int,
         nargs=2,
@@ -225,7 +236,7 @@ def parse_args(argv):
         "--save", action="store_true", default=True, help="Save model to disk"
     )
     parser.add_argument(
-        "--save-file-name", default="checkpoint.pth.tar", help="Save model to the file"
+        "--save-file-name", default="checkpoint", help="Save model to the file"
     )
     parser.add_argument("--seed", type=int, help="Set random seed for reproducibility")
     parser.add_argument(
@@ -241,6 +252,7 @@ def parse_args(argv):
 
 def main(argv):
     args = parse_args(argv)
+    writer = SummaryWriter(f"./runs/{args.log_name}")
 
     if args.seed is not None:
         torch.manual_seed(args.seed)
@@ -306,9 +318,10 @@ def main(argv):
         lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
 
     best_loss = float("inf")
+    best_epoch = 0
     for epoch in range(last_epoch, args.epochs):
         print(f"Learning rate: {optimizer.param_groups[0]['lr']}")
-        train_one_epoch(
+        train_loss, train_mse_loss, train_bpp_loss, train_aux_loss = train_one_epoch(
             net,
             criterion,
             train_dataloader,
@@ -317,18 +330,31 @@ def main(argv):
             epoch,
             args.clip_max_norm,
         )
-        loss = test_epoch(epoch, test_dataloader, net, criterion)
-        lr_scheduler.step(loss)
+        test_loss, test_mse_loss, test_bpp_loss, test_aux_loss = test_epoch(epoch, test_dataloader, net, criterion)
+        lr_scheduler.step(test_loss)
 
-        is_best = loss < best_loss
-        best_loss = min(loss, best_loss)
+        is_best = test_loss < best_loss
+        best_epoch = epoch if is_best else best_epoch
+        best_loss = min(test_loss, best_loss)
+        
+        ## Log every 5 epochs
+        if epoch % 5 == 0:
+            writer.add_scalar("Train Loss/cumulative", train_loss, epoch)
+            writer.add_scalar("Train Loss/mse", train_mse_loss, epoch)
+            writer.add_scalar("Train Loss/bpp", train_bpp_loss, epoch)
+            writer.add_scalar("Train Loss/aux", train_aux_loss, epoch)
+
+            writer.add_scalar("Test Loss/cumulative", test_loss, epoch)
+            writer.add_scalar("Test Loss/mse", test_mse_loss, epoch)
+            writer.add_scalar("Test Loss/bpp", test_bpp_loss, epoch)
+            writer.add_scalar("Test Loss/aux", test_aux_loss, epoch)
 
         if args.save:
             save_checkpoint(
                 {
                     "epoch": epoch,
                     "state_dict": net.state_dict(),
-                    "loss": loss,
+                    "loss": test_loss,
                     "optimizer": optimizer.state_dict(),
                     "aux_optimizer": aux_optimizer.state_dict(),
                     "lr_scheduler": lr_scheduler.state_dict(),
@@ -336,7 +362,10 @@ def main(argv):
                 is_best,
                 filename=args.save_file_name
             )
-
+    
+    shutil.copyfile(f"{args.save_file_name}_best_loss.pth.tar", f"{args.save_file_name}_best_loss_{best_epoch}.pth.tar")
+    writer.flush()
+    writer.close()
 
 if __name__ == "__main__":
     main(sys.argv[1:])
