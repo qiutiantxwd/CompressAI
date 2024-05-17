@@ -89,6 +89,11 @@ def train_one_epoch(
     model.train()
     device = next(model.parameters()).device
 
+    avg_loss = AverageMeter()
+    avg_bpp_loss = AverageMeter()
+    avg_mse_loss = AverageMeter()
+    avg_aux_loss = AverageMeter()
+
     for i, d in enumerate(train_dataloader):
         d = d.to(device)
 
@@ -117,6 +122,11 @@ def train_one_epoch(
         loss = out_criterion["loss"].item()
         mse_loss = out_criterion["mse_loss"].item()
         bpp_loss = out_criterion["bpp_loss"].item()
+
+        avg_aux_loss.update(aux_loss.item())
+        avg_bpp_loss.update(bpp_loss)
+        avg_loss.update(loss)
+        avg_mse_loss.update(mse_loss)
         
 
         if i % 10 == 0:
@@ -129,7 +139,7 @@ def train_one_epoch(
                 f'\tBpp loss: {bpp_loss:.2f} |'
                 f"\tAux loss: {aux_loss.item():.2f}"
             )
-    return loss, mse_loss, bpp_loss, aux_loss.item() 
+    return avg_loss.avg, avg_mse_loss.avg, avg_bpp_loss.avg, avg_aux_loss.avg
 
 
 def test_epoch(epoch, test_dataloader, model, criterion):
