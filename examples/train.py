@@ -84,7 +84,7 @@ def configure_optimizers(net, args):
 
 
 def train_one_epoch(
-    model, criterion, train_dataloader, optimizer, aux_optimizer, epoch, clip_max_norm
+    model, criterion, train_dataloader, optimizer, aux_optimizer, epoch, clip_max_norm, writer
 ):
     model.train()
     device = next(model.parameters()).device
@@ -97,6 +97,13 @@ def train_one_epoch(
 
         out_net = model(d)
 
+        #print(d[0])
+        if epoch % 5 == 0:
+            out = d[0].clone()
+
+            writer.add_image("images/clean", out, epoch)
+            writer.add_image("images/reconstructed", out_net["x_hat"][0], epoch) 
+       
         out_criterion = criterion(out_net, d)
         out_criterion["loss"].backward()
         if clip_max_norm > 0:
@@ -122,7 +129,7 @@ def train_one_epoch(
                 f'\tBpp loss: {bpp_loss:.2f} |'
                 f"\tAux loss: {aux_loss.item():.2f}"
             )
-        return loss, mse_loss, bpp_loss, aux_loss.item() 
+    return loss, mse_loss, bpp_loss, aux_loss.item() 
 
 
 def test_epoch(epoch, test_dataloader, model, criterion):
@@ -329,6 +336,7 @@ def main(argv):
             aux_optimizer,
             epoch,
             args.clip_max_norm,
+            writer
         )
         test_loss, test_mse_loss, test_bpp_loss, test_aux_loss = test_epoch(epoch, test_dataloader, net, criterion)
         lr_scheduler.step(test_loss)
@@ -337,8 +345,8 @@ def main(argv):
         best_epoch = epoch if is_best else best_epoch
         best_loss = min(test_loss, best_loss)
         
-        # If no test improvement for 10 epochs, stop training
-        if epoch > best_epoch + 10:
+        # If no test improvement for 50 epochs, stop training
+        if epoch > best_epoch + 50:
             break
 
         
