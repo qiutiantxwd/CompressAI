@@ -172,7 +172,7 @@ def inference_entropy_estimation(model, x, vbr_stage=None, vbr_scale=None):
 
     return {
         "psnr-rgb": metrics["psnr-rgb"],
-        "ms-ssim-rgb": metrics["ms-ssim-rgb"],
+        # "ms-ssim-rgb": metrics["ms-ssim-rgb"],
         "bpp": bpp.item(),
         "encoding_time": elapsed_time / 2.0,  # broad estimation
         "decoding_time": elapsed_time / 2.0,
