@@ -102,8 +102,8 @@ def train_one_epoch(
 
         out_net = model(d)
 
-        #print(d[0])
-        if epoch % 5 == 0:
+        # write decoded images to writer, only called at the last batch of one epoch.
+        if i == len(train_dataloader)-1 and epoch % 5 == 0:
             out = d[0].clone()
 
             writer.add_image("images/clean", out, epoch)
